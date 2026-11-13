@@ -13,6 +13,7 @@ document.addEventListener("DOMContentLoaded", () => {
     loadAgents();
     loadTasks();
     loadActivities();
+    checkHermesStatus();
     if (document.getElementById("tab-chat").classList.contains("active")) {
       loadChatMessages(currentAgent);
     }
@@ -54,6 +55,8 @@ function initModals() {
     const description = document.getElementById("task-desc-input").value.trim();
     const assignee = document.getElementById("task-assignee-select").value;
     const priority = document.getElementById("task-priority-select").value;
+    const syncCheckbox = document.getElementById("task-sync-hermes");
+    const sync_hermes = syncCheckbox ? syncCheckbox.checked : false;
 
     if (!title) return;
 
@@ -61,11 +64,12 @@ function initModals() {
       const res = await fetch("/api/tasks", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title, description, assignee, priority })
+        body: JSON.stringify({ title, description, assignee, priority, sync_hermes })
       });
       if (res.ok) {
         modal.classList.remove("active");
         document.getElementById("task-form").reset();
+        if (syncCheckbox) syncCheckbox.checked = true;
         loadTasks();
         loadActivities();
       } else {
@@ -128,12 +132,63 @@ function initChat() {
   });
 }
 
-function initTasks() {}
+function initTasks() {
+  const syncBtn = document.getElementById("btn-sync-kanban");
+  if (syncBtn) {
+    syncBtn.addEventListener("click", async () => {
+      syncBtn.disabled = true;
+      syncBtn.innerText = "Syncing...";
+      try {
+        const res = await fetch("/api/kanban/sync", { method: "POST" });
+        if (res.ok) {
+          const data = await res.json();
+          alert(`Hermes Kanban synced: ${data.synced_count} tasks synced (${data.total_tasks} total)`);
+          await loadTasks();
+          await loadActivities();
+          await checkHermesStatus();
+        } else {
+          alert("Failed to sync Hermes Kanban");
+        }
+      } catch (err) {
+        alert("Error syncing Hermes Kanban: " + err.message);
+      } finally {
+        syncBtn.disabled = false;
+        syncBtn.innerText = "🔄 Sync Hermes Kanban";
+      }
+    });
+  }
+}
+
+async function checkHermesStatus() {
+  const badgeText = document.getElementById("hermes-status-text");
+  const badgeDot = document.getElementById("hermes-status-dot");
+  if (!badgeText) return;
+  try {
+    const res = await fetch("/api/kanban/status");
+    if (res.ok) {
+      const data = await res.json();
+      if (data.connected) {
+        badgeText.innerText = "Hermes: Connected";
+        badgeDot.style.backgroundColor = "var(--success)";
+        badgeDot.style.boxShadow = "0 0 8px var(--success)";
+        return;
+      }
+    }
+    badgeText.innerText = "Hermes: Disconnected";
+    badgeDot.style.backgroundColor = "var(--text-muted)";
+    badgeDot.style.boxShadow = "none";
+  } catch (err) {
+    badgeText.innerText = "Hermes: Offline";
+    badgeDot.style.backgroundColor = "var(--danger)";
+    badgeDot.style.boxShadow = "none";
+  }
+}
 
 async function loadAll() {
   await loadAgents();
   await loadTasks();
   await loadActivities();
+  await checkHermesStatus();
   loadChatMessages(currentAgent);
 }
 
@@ -142,6 +197,10 @@ async function loadAgents() {
     const res = await fetch("/api/agents");
     if (!res.ok) return;
     agentsData = await res.json();
+
+    if (typeof window.updateIsometricAgents === "function") {
+      window.updateIsometricAgents(agentsData);
+    }
 
     // Update Header Meta
     const activeCount = agentsData.filter(a => a.status === "running").length;
@@ -223,6 +282,7 @@ function openChatWith(agentId) {
   const chatTabBtn = document.querySelector('[data-tab="tab-chat"]');
   chatTabBtn.click();
 }
+window.openChatWith = openChatWith;
 
 function openTaskModalFor(agentId) {
   const modal = document.getElementById("task-modal");
@@ -330,6 +390,7 @@ function createTaskElement(task) {
     <div class="task-meta">
       <span class="task-assignee">@${task.assignee || 'unassigned'}</span>
       <span class="task-priority ${priorityClass}">${task.priority || 'medium'}</span>
+      ${task.hermes_id ? `<span class="task-priority" style="background:rgba(56,189,248,0.15);color:#38bdf8;border:1px solid rgba(56,189,248,0.4);">Hermes (${escapeHtml(task.hermes_id)})</span>` : ''}
     </div>
     ${resultHtml}
     <div class="task-actions">${actionBtns}</div>

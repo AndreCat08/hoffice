@@ -1,8 +1,10 @@
 import os
 from pathlib import Path
+import secrets
 import sqlite3
 import subprocess
 import threading
+import time
 from contextlib import asynccontextmanager, contextmanager
 from typing import Optional
 
@@ -14,6 +16,7 @@ from pydantic import BaseModel
 BASE_DIR = Path(__file__).resolve().parent
 DB_PATH = BASE_DIR / "hoffice.db"
 STATIC_DIR = BASE_DIR / "static"
+HERMES_DB_PATH = Path(os.getenv("HERMES_KANBAN_DB", "/home/ubuntu/.hermes/kanban.db"))
 
 AGENTS = {
     "sandy": {"id": "sandy", "name": "Sandy", "role": "Tech Lead"},
@@ -27,15 +30,18 @@ AGENTS = {
 
 # ponytail: in-memory agent status resets on process restart; upgrade to persistent DB/redis state when multi-worker deployment needed
 running_agents: set[str] = set()
+running_actions: dict[str, Optional[str]] = {}
 running_agents_lock = threading.Lock()
 
 
-def set_agent_running(agent_id: str, is_running: bool):
+def set_agent_running(agent_id: str, is_running: bool, action: Optional[str] = None):
     with running_agents_lock:
         if is_running:
             running_agents.add(agent_id)
+            running_actions[agent_id] = action
         else:
             running_agents.discard(agent_id)
+            running_actions[agent_id] = None
 
 
 @contextmanager
@@ -64,6 +70,7 @@ def init_db():
                 priority TEXT,
                 status TEXT DEFAULT 'todo',
                 result TEXT,
+                hermes_id TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
@@ -83,6 +90,83 @@ def init_db():
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
         """)
+        try:
+            conn.execute("ALTER TABLE tasks ADD COLUMN hermes_id TEXT;")
+        except sqlite3.OperationalError:
+            pass
+
+
+def ensure_hermes_table(conn: sqlite3.Connection):
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS tasks (
+            id TEXT PRIMARY KEY,
+            title TEXT NOT NULL,
+            body TEXT,
+            assignee TEXT,
+            status TEXT NOT NULL,
+            priority INTEGER DEFAULT 0,
+            workspace_kind TEXT NOT NULL DEFAULT 'scratch',
+            created_by TEXT,
+            created_at INTEGER NOT NULL
+        );
+        """
+    )
+
+
+@contextmanager
+def get_hermes_db():
+    if not HERMES_DB_PATH.exists():
+        yield None
+        return
+    conn = sqlite3.connect(HERMES_DB_PATH)
+    conn.row_factory = sqlite3.Row
+    try:
+        yield conn
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
+def read_hermes_tasks() -> list[dict]:
+    if not HERMES_DB_PATH.exists():
+        return []
+    with get_hermes_db() as conn:
+        if conn is None:
+            return []
+        try:
+            rows = conn.execute(
+                "SELECT * FROM tasks WHERE status != 'archived' ORDER BY created_at DESC"
+            ).fetchall()
+            return [dict(r) for r in rows]
+        except sqlite3.OperationalError:
+            return []
+
+
+def write_hermes_task(
+    task_id: str,
+    title: str,
+    description: Optional[str] = "",
+    assignee: Optional[str] = None,
+) -> bool:
+    if not HERMES_DB_PATH.exists():
+        return False
+    with get_hermes_db() as conn:
+        if conn is None:
+            return False
+        ensure_hermes_table(conn)
+        now = int(time.time())
+        conn.execute(
+            """
+            INSERT INTO tasks (id, title, body, assignee, status, priority, workspace_kind, created_by, created_at)
+            VALUES (?, ?, ?, ?, 'todo', 0, 'scratch', 'hoffice', ?)
+            """,
+            (task_id, title, description or "", assignee, now),
+        )
+        return True
 
 
 def log_activity(conn: sqlite3.Connection, event_type: str, message: str):
@@ -104,7 +188,7 @@ def ensure_static_dir():
         )
 
 
-ALLOWED_UPDATE_FIELDS = {"title", "description", "assignee", "priority", "status", "result"}
+ALLOWED_UPDATE_FIELDS = {"title", "description", "assignee", "priority", "status", "result", "hermes_id"}
 MAX_MESSAGE_LENGTH = 10000
 
 
@@ -113,6 +197,7 @@ class TaskCreate(BaseModel):
     description: Optional[str] = ""
     assignee: Optional[str] = None
     priority: Optional[str] = "medium"
+    sync_hermes: Optional[bool] = False
 
 
 class TaskUpdate(BaseModel):
@@ -151,8 +236,13 @@ app.add_middleware(
 def get_agents():
     with running_agents_lock:
         active = set(running_agents)
+        actions = dict(running_actions)
     return [
-        {**info, "status": "running" if agent_id in active else "idle"}
+        {
+            **info,
+            "status": "running" if agent_id in active else "idle",
+            "action": actions.get(agent_id) or "Idle" if agent_id in active else "Idle",
+        }
         for agent_id, info in AGENTS.items()
     ]
 
@@ -171,13 +261,19 @@ def create_task(task: TaskCreate):
             status_code=400,
             detail=f"Invalid assignee '{task.assignee}'. Must be one of: {list(AGENTS.keys())}",
         )
+    hermes_id = None
+    if task.sync_hermes:
+        if HERMES_DB_PATH.exists():
+            hermes_id = "t_" + secrets.token_hex(4)
+            write_hermes_task(hermes_id, task.title, task.description, task.assignee)
+
     with get_db() as conn:
         cursor = conn.execute(
             """
-            INSERT INTO tasks (title, description, assignee, priority, status)
-            VALUES (?, ?, ?, ?, 'todo')
+            INSERT INTO tasks (title, description, assignee, priority, status, hermes_id)
+            VALUES (?, ?, ?, ?, 'todo', ?)
             """,
-            (task.title, task.description, task.assignee, task.priority),
+            (task.title, task.description, task.assignee, task.priority, hermes_id),
         )
         task_id = cursor.lastrowid
         log_activity(
@@ -241,7 +337,7 @@ def run_task(task_id: int):
         )
         log_activity(conn, "task_started", f"Task #{task_id} '{title}' run started by {assignee}")
 
-    set_agent_running(assignee, True)
+    set_agent_running(assignee, True, f"Task #{task_id}: {title}")
     try:
         proc = subprocess.run(
             ["hermes", "-p", assignee, "chat", "-q", prompt, "--oneshot", "-Q"],
@@ -275,6 +371,84 @@ def run_task(task_id: int):
         log_activity(conn, f"task_{status}", f"Task #{task_id} '{title}' finished: {status}")
         row = conn.execute("SELECT * FROM tasks WHERE id = ?", (task_id,)).fetchone()
         return dict(row)
+
+
+@app.get("/api/kanban/hermes")
+def get_hermes_kanban():
+    return read_hermes_tasks()
+
+
+@app.get("/api/kanban/status")
+def get_hermes_status():
+    exists = HERMES_DB_PATH.exists()
+    return {"connected": exists, "db_path": str(HERMES_DB_PATH)}
+
+
+@app.post("/api/kanban/sync")
+def sync_hermes_kanban():
+    hermes_tasks = read_hermes_tasks()
+    synced_count = 0
+    with get_db() as conn:
+        for ht in hermes_tasks:
+            h_id = ht.get("id")
+            h_title = (ht.get("title") or "").strip()
+            if not h_title:
+                continue
+            h_body = ht.get("body") or ""
+            h_assignee = ht.get("assignee")
+            if h_assignee:
+                if h_assignee not in AGENTS:
+                    h_assignee = None
+            h_raw_status = (ht.get("status") or "todo").lower()
+            if h_raw_status == "running":
+                h_status = "running"
+            elif h_raw_status in {"done", "completed", "closed"}:
+                h_status = "done"
+            elif h_raw_status == "failed":
+                h_status = "failed"
+            else:
+                h_status = "todo"
+
+            existing = None
+            if h_id:
+                existing = conn.execute("SELECT * FROM tasks WHERE hermes_id = ?", (h_id,)).fetchone()
+            if not existing:
+                existing = conn.execute("SELECT * FROM tasks WHERE title = ?", (h_title,)).fetchone()
+
+            if existing:
+                conn.execute(
+                    """
+                    UPDATE tasks
+                    SET hermes_id = COALESCE(?, hermes_id),
+                        description = COALESCE(NULLIF(?, ''), description),
+                        assignee = COALESCE(?, assignee),
+                        status = ?,
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE id = ?
+                    """,
+                    (h_id, h_body, h_assignee, h_status, existing["id"]),
+                )
+            else:
+                conn.execute(
+                    """
+                    INSERT INTO tasks (title, description, assignee, priority, status, hermes_id)
+                    VALUES (?, ?, ?, 'medium', ?, ?)
+                    """,
+                    (h_title, h_body, h_assignee, h_status, h_id),
+                )
+            synced_count += 1
+
+        total_tasks = conn.execute("SELECT COUNT(*) FROM tasks").fetchone()[0]
+        log_activity(
+            conn,
+            "kanban_synced",
+            f"Hermes Kanban synced: {synced_count} tasks synced, {total_tasks} total in board",
+        )
+        return {
+            "status": "ok",
+            "synced_count": synced_count,
+            "total_tasks": total_tasks,
+        }
 
 
 @app.get("/api/chat/{agent}")
@@ -316,7 +490,7 @@ def send_chat(agent: str, payload: ChatRequest):
         )
         log_activity(conn, "chat_sent", f"User sent message to {agent}")
 
-    set_agent_running(agent, True)
+    set_agent_running(agent, True, "Replying to chat...")
     try:
         proc = subprocess.run(
             ["hermes", "-p", agent, "chat", "-q", msg_text, "--oneshot", "-Q"],

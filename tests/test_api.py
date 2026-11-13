@@ -12,7 +12,24 @@ def test_all():
     assert len(agents) == 7, f"Expected 7 agents, got {len(agents)}"
     agent_ids = {a["id"] for a in agents}
     assert agent_ids == set(AGENTS.keys()), f"Agent IDs mismatch: {agent_ids}"
-    print(f"    OK: Found {len(agents)} agents: {list(agent_ids)}")
+    for a in agents:
+        assert "action" in a, f"Agent {a['id']} missing action field"
+        assert a["action"] == "Idle", f"Agent {a['id']} expected action Idle, got {a['action']}"
+    print(f"    OK: Found {len(agents)} agents with action field: {list(agent_ids)}")
+
+    print("[1b] Test GET /api/agents dynamic action tracking...")
+    from app import set_agent_running
+    set_agent_running("probe", True, "Task #42: Testing Live Action")
+    res_active = client.get("/api/agents")
+    probe_active = next(a for a in res_active.json() if a["id"] == "probe")
+    assert probe_active["status"] == "running"
+    assert probe_active["action"] == "Task #42: Testing Live Action"
+    set_agent_running("probe", False)
+    res_cleared = client.get("/api/agents")
+    probe_cleared = next(a for a in res_cleared.json() if a["id"] == "probe")
+    assert probe_cleared["status"] == "idle"
+    assert probe_cleared["action"] == "Idle"
+    print("    OK: Dynamic action tracking running and idle verified")
 
     print("[2] Test POST /api/tasks...")
     payload = {
@@ -69,6 +86,74 @@ def test_all():
     assert res.status_code == 200
     assert "Hoffice" in res.text
     print("    OK: Static index.html served cleanly")
+
+    print("[9] Test Static Files isometric.js...")
+    res = client.get("/isometric.js")
+    assert res.status_code == 200
+    assert "updateIsometricAgents" in res.text
+    print("    OK: Static isometric.js served cleanly")
+
+    print("[10] Test GET /api/kanban/status and /api/kanban/hermes...")
+    res_status = client.get("/api/kanban/status")
+    assert res_status.status_code == 200
+    status_data = res_status.json()
+    assert "connected" in status_data
+    assert "db_path" in status_data
+
+    res_hermes = client.get("/api/kanban/hermes")
+    assert res_hermes.status_code == 200
+    assert isinstance(res_hermes.json(), list)
+    print("    OK: Hermes kanban endpoints responsive")
+
+    print("[11] Test POST /api/kanban/sync...")
+    res_sync = client.post("/api/kanban/sync")
+    assert res_sync.status_code == 200
+    sync_data = res_sync.json()
+    assert sync_data["status"] == "ok"
+    assert "synced_count" in sync_data
+    assert "total_tasks" in sync_data
+    print(f"    OK: Hermes kanban synced {sync_data['synced_count']} tasks")
+
+    print("[12] Test POST /api/tasks with sync_hermes=True...")
+    payload_hermes = {
+        "title": "Probe Hermes Sync Task",
+        "description": "Created with sync_hermes flag",
+        "assignee": "probe",
+        "sync_hermes": True
+    }
+    res_created = client.post("/api/tasks", json=payload_hermes)
+    assert res_created.status_code == 200
+    created_task = res_created.json()
+    assert created_task["id"] > 0
+    if status_data["connected"]:
+        assert created_task.get("hermes_id") is not None
+        assert created_task["hermes_id"].startswith("t_")
+    print(f"    OK: Created task with sync_hermes: #{created_task['id']} (hermes_id={created_task.get('hermes_id')})")
+
+    print("[13] Test Security & Sanitization (Robert & Probe check)...")
+    # Message length limit rejection
+    oversized = "A" * 10001
+    res_too_long = client.post("/api/chat/sandy", json={"message": oversized})
+    assert res_too_long.status_code == 400
+    assert "Message too long" in res_too_long.text
+
+    # Empty message rejection
+    res_empty = client.post("/api/chat/sandy", json={"message": "   "})
+    assert res_empty.status_code == 400
+
+    # SQL Injection attempt in title & assignee
+    res_sqli = client.post("/api/tasks", json={
+        "title": "'; DROP TABLE tasks; --",
+        "assignee": "sandy",
+        "priority": "low"
+    })
+    assert res_sqli.status_code == 200
+    sqli_task = res_sqli.json()
+    assert sqli_task["title"] == "'; DROP TABLE tasks; --"
+    # Verify tasks table is intact
+    res_tasks_intact = client.get("/api/tasks")
+    assert res_tasks_intact.status_code == 200
+    print("    OK: SQL injection resilient & input boundaries enforced")
 
     print("\nALL VERIFICATION CHECKS PASSED.")
 

@@ -32,6 +32,9 @@
   <main>
     <!-- TAB 1: Office Floor -->
     <section id="tab-office" class="tab-content active">
+      <div class="isometric-container">
+        <canvas id="isometric-canvas"></canvas>
+      </div>
       <div class="section-header">
         <h2>Team Members</h2>
         <span style="font-size:13px;color:var(--text-secondary);">Real-time agent roster and current activity</span>
@@ -72,7 +75,14 @@
     <section id="tab-tasks" class="tab-content">
       <div class="section-header">
         <h2>Tasks & Delegation</h2>
-        <button class="btn" id="btn-new-task">➕ Create Task</button>
+        <div style="display:flex;align-items:center;gap:12px;">
+          <div id="hermes-status-badge" class="status-badge" style="font-size:12px;">
+            <div id="hermes-status-dot" class="status-dot" style="background-color:var(--text-muted);box-shadow:none;"></div>
+            <span id="hermes-status-text">Hermes: Checking...</span>
+          </div>
+          <button class="btn btn-secondary" id="btn-sync-kanban">🔄 Sync Hermes Kanban</button>
+          <button class="btn" id="btn-new-task">➕ Create Task</button>
+        </div>
       </div>
       <div class="tasks-columns">
         <div class="task-col">
@@ -140,6 +150,10 @@
             <option value="low">Low</option>
           </select>
         </div>
+        <div class="form-group" style="display:flex;align-items:center;gap:8px;">
+          <input type="checkbox" id="task-sync-hermes" checked style="width:auto;cursor:pointer;">
+          <label for="task-sync-hermes" style="margin-bottom:0;cursor:pointer;">Sync to Hermes Kanban</label>
+        </div>
         <div class="modal-actions">
           <button type="button" class="btn btn-secondary" id="btn-cancel-task">Cancel</button>
           <button type="submit" class="btn">Create Task</button>
@@ -148,6 +162,7 @@
     </div>
   </div>
 
+  <script src="/isometric.js"></script>
   <script src="/app.js"></script>
 </body>
 </html>
