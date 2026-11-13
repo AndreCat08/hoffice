@@ -259,6 +259,12 @@ async function loadAgents() {
     });
 
     if (existingAssignee) assigneeSelect.value = existingAssignee;
+
+    // Initialize chat header avatar
+    const chatAvatarEl = document.getElementById("chat-target-avatar");
+    if (chatAvatarEl && window.HofficeAvatars) {
+      chatAvatarEl.innerHTML = window.HofficeAvatars.getAgentAvatarSvg(currentAgent || "sandy");
+    }
   } catch (err) {
     console.error("loadAgents error", err);
   }
