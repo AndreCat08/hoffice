@@ -349,10 +349,10 @@
     drawChair(gx - 0.25, gy - 0.25);
 
     // --- 2. Avatar Character ---
-    drawAvatar(gx - 0.1, gy - 0.1, color, isRunning);
+    drawAvatar(agent, gx - 0.1, gy - 0.1, isRunning);
 
     // --- 3. Isometric Desk Furniture ---
-    drawDeskFurniture(gx, gy, isRunning);
+    drawDeskFurniture(agent, gx, gy, isRunning);
 
     // --- 4. Status Bubble Badge above agent head ---
     drawStatusBubble(base.x, base.y - 58, status, isRunning, agent.action);
@@ -398,7 +398,9 @@
     ctx.restore();
   }
 
-  function drawAvatar(gx, gy, themeColor, isRunning) {
+  function drawAvatar(agent, gx, gy, isRunning) {
+    const id = (agent && agent.id) || "sandy";
+    const themeColor = (agent && agent.color) || "#3b82f6";
     // Slight idle breathing or typing motion when running
     const wobble = isRunning ? Math.sin(animTime * 10) * 1.5 : Math.sin(animTime * 2) * 0.5;
 
@@ -406,7 +408,8 @@
     const headPos = isoToScreen(gx, gy, 30 + wobble);
 
     ctx.save();
-    // Torso / Body
+
+    // 1. Torso / Body
     ctx.beginPath();
     ctx.ellipse(bodyPos.x, bodyPos.y, 8, 11, 0, 0, Math.PI * 2);
     ctx.fillStyle = themeColor;
@@ -415,7 +418,57 @@
     ctx.lineWidth = 1;
     ctx.stroke();
 
-    // Arms extending forward to desk keyboard
+    // Clothes details per agent
+    if (id === "sandy") {
+      // Tech Lead navy suit with white collar & gold tie
+      ctx.beginPath();
+      ctx.moveTo(bodyPos.x - 3, bodyPos.y - 7);
+      ctx.lineTo(bodyPos.x, bodyPos.y - 2);
+      ctx.lineTo(bodyPos.x + 3, bodyPos.y - 7);
+      ctx.fillStyle = "#f8fafc";
+      ctx.fill();
+      ctx.fillStyle = "#fbbf24";
+      ctx.fillRect(bodyPos.x - 1, bodyPos.y - 2, 2, 6);
+    } else if (id === "chao") {
+      // Charcoal hoodie drawstrings
+      ctx.fillStyle = "#10b981";
+      ctx.fillRect(bodyPos.x - 3, bodyPos.y - 3, 1.2, 6);
+      ctx.fillRect(bodyPos.x + 2, bodyPos.y - 3, 1.2, 6);
+    } else if (id === "irene") {
+      // Cyan stylish collar trim
+      ctx.fillStyle = "#06b6d4";
+      ctx.fillRect(bodyPos.x - 3, bodyPos.y - 6, 6, 2);
+    } else if (id === "probe") {
+      // Safety QA vest stripes
+      ctx.fillStyle = "#e2e8f0";
+      ctx.fillRect(bodyPos.x - 4, bodyPos.y - 5, 2, 10);
+      ctx.fillRect(bodyPos.x + 2, bodyPos.y - 5, 2, 10);
+    } else if (id === "robert") {
+      // Security suit + Red tie
+      ctx.beginPath();
+      ctx.moveTo(bodyPos.x - 3, bodyPos.y - 7);
+      ctx.lineTo(bodyPos.x, bodyPos.y - 3);
+      ctx.lineTo(bodyPos.x + 3, bodyPos.y - 7);
+      ctx.fillStyle = "#f8fafc";
+      ctx.fill();
+      ctx.fillStyle = "#ef4444";
+      ctx.fillRect(bodyPos.x - 1, bodyPos.y - 3, 2, 7);
+    } else if (id === "iroi") {
+      // Utility harness straps
+      ctx.fillStyle = "#1e293b";
+      ctx.fillRect(bodyPos.x - 5, bodyPos.y - 5, 2, 10);
+      ctx.fillRect(bodyPos.x + 3, bodyPos.y - 5, 2, 10);
+    } else if (id === "quill") {
+      // Tweed vest & cream shirt
+      ctx.beginPath();
+      ctx.moveTo(bodyPos.x - 3, bodyPos.y - 7);
+      ctx.lineTo(bodyPos.x, bodyPos.y - 2);
+      ctx.lineTo(bodyPos.x + 3, bodyPos.y - 7);
+      ctx.fillStyle = "#fef3c7";
+      ctx.fill();
+    }
+
+    // 2. Arms extending forward to desk keyboard
     const armL = isoToScreen(gx + 0.15, gy - 0.1, 16);
     const armR = isoToScreen(gx - 0.1, gy + 0.15, 16);
     ctx.beginPath();
@@ -427,32 +480,133 @@
     ctx.lineWidth = 2.5;
     ctx.stroke();
 
-    // Head
+    // Hands
+    ctx.fillStyle = id === "chao" ? "#fde047" : "#fcd34d";
+    ctx.beginPath();
+    ctx.arc(armL.x, armL.y, 2, 0, Math.PI * 2);
+    ctx.arc(armR.x, armR.y, 2, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 3. Head & Skin
     ctx.beginPath();
     ctx.arc(headPos.x, headPos.y, 6.5, 0, Math.PI * 2);
-    ctx.fillStyle = "#fcd34d"; // warm skin tone
+    ctx.fillStyle = id === "chao" ? "#fde047" : "#fcd34d";
     ctx.fill();
     ctx.strokeStyle = "rgba(15, 23, 42, 0.4)";
     ctx.lineWidth = 0.8;
     ctx.stroke();
 
-    // Hair
-    ctx.beginPath();
-    ctx.arc(headPos.x, headPos.y - 2, 6.5, Math.PI, Math.PI * 2);
-    ctx.fillStyle = "#1e293b";
-    ctx.fill();
-
-    // Small headset or glasses
-    ctx.beginPath();
-    ctx.arc(headPos.x, headPos.y, 7, -0.2, 0.2);
-    ctx.strokeStyle = "#38bdf8";
-    ctx.lineWidth = 1.2;
-    ctx.stroke();
+    // 4. Distinct Hair / Headgear per agent
+    if (id === "sandy") {
+      // Neat dark hair
+      ctx.beginPath();
+      ctx.arc(headPos.x, headPos.y - 2, 6.5, Math.PI * 0.9, Math.PI * 2.1);
+      ctx.fillStyle = "#0f172a";
+      ctx.fill();
+      // Gold tech lead glasses
+      ctx.strokeStyle = "#fbbf24";
+      ctx.lineWidth = 1;
+      ctx.strokeRect(headPos.x - 4.5, headPos.y - 1.5, 3.5, 2.5);
+      ctx.strokeRect(headPos.x + 1, headPos.y - 1.5, 3.5, 2.5);
+      ctx.beginPath();
+      ctx.moveTo(headPos.x - 1, headPos.y);
+      ctx.lineTo(headPos.x + 1, headPos.y);
+      ctx.stroke();
+    } else if (id === "chao") {
+      // Dark hoodie over head
+      ctx.beginPath();
+      ctx.arc(headPos.x, headPos.y - 1, 7.8, Math.PI * 0.8, Math.PI * 2.2);
+      ctx.fillStyle = "#334155";
+      ctx.fill();
+      // Bangs
+      ctx.fillStyle = "#1e293b";
+      ctx.fillRect(headPos.x - 4, headPos.y - 4, 8, 2.5);
+      // Focused eyes (green terminal reflection)
+      ctx.fillStyle = "#10b981";
+      ctx.fillRect(headPos.x - 3, headPos.y - 1, 2, 1);
+      ctx.fillRect(headPos.x + 1, headPos.y - 1, 2, 1);
+    } else if (id === "irene") {
+      // Vibrant purple bob hair
+      ctx.beginPath();
+      ctx.arc(headPos.x, headPos.y - 2, 7.2, Math.PI * 0.8, Math.PI * 2.2);
+      ctx.fillStyle = "#a855f7";
+      ctx.fill();
+      ctx.fillRect(headPos.x - 6, headPos.y - 2, 2.5, 6);
+      ctx.fillRect(headPos.x + 3.5, headPos.y - 2, 2.5, 6);
+      // Cyan gaming/DJ headset
+      ctx.strokeStyle = "#06b6d4";
+      ctx.lineWidth = 1.8;
+      ctx.beginPath();
+      ctx.arc(headPos.x, headPos.y - 2, 7.8, Math.PI * 1.1, Math.PI * 1.9);
+      ctx.stroke();
+      ctx.fillStyle = "#06b6d4";
+      ctx.fillRect(headPos.x - 7.5, headPos.y - 2, 2.5, 5);
+      ctx.fillRect(headPos.x + 5, headPos.y - 2, 2.5, 5);
+    } else if (id === "probe") {
+      // Safety yellow hardhat
+      ctx.fillStyle = "#eab308";
+      ctx.beginPath();
+      ctx.arc(headPos.x, headPos.y - 2.5, 7.5, Math.PI * 0.9, Math.PI * 2.1);
+      ctx.fill();
+      // Helmet rim
+      ctx.fillStyle = "#ca8a04";
+      ctx.fillRect(headPos.x - 7.5, headPos.y - 2.5, 15, 2.2);
+      // White headlamp
+      ctx.fillStyle = "#fef08a";
+      ctx.fillRect(headPos.x - 1.5, headPos.y - 5.5, 3, 2.5);
+      // Sharp eyes
+      ctx.fillStyle = "#0f172a";
+      ctx.fillRect(headPos.x - 3, headPos.y + 0.5, 1.5, 1.5);
+      ctx.fillRect(headPos.x + 1.5, headPos.y + 0.5, 1.5, 1.5);
+    } else if (id === "robert") {
+      // Slick dark hair
+      ctx.fillStyle = "#020617";
+      ctx.beginPath();
+      ctx.arc(headPos.x, headPos.y - 2, 6.8, Math.PI * 0.85, Math.PI * 2.15);
+      ctx.fill();
+      // Black sunglasses with white glint
+      ctx.fillStyle = "#0f172a";
+      ctx.fillRect(headPos.x - 4.5, headPos.y - 1.5, 9, 2.5);
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(headPos.x - 3, headPos.y - 1, 1, 1);
+      ctx.fillRect(headPos.x + 2, headPos.y - 1, 1, 1);
+    } else if (id === "iroi") {
+      // Orange bandana / engineer cap
+      ctx.fillStyle = "#ea580c";
+      ctx.beginPath();
+      ctx.arc(headPos.x, headPos.y - 2.5, 7, Math.PI * 0.85, Math.PI * 2.15);
+      ctx.fill();
+      ctx.fillRect(headPos.x - 6.5, headPos.y - 2, 13, 2.5);
+      // Dark hair peeking
+      ctx.fillStyle = "#451a03";
+      ctx.fillRect(headPos.x - 5.5, headPos.y + 0.5, 2, 2);
+      ctx.fillRect(headPos.x + 3.5, headPos.y + 0.5, 2, 2);
+    } else if (id === "quill") {
+      // Vintage scholar beret / cap
+      ctx.fillStyle = "#78350f";
+      ctx.beginPath();
+      ctx.ellipse(headPos.x, headPos.y - 4, 7, 3, -0.1, 0, Math.PI * 2);
+      ctx.fill();
+      // Round scholar spectacles
+      ctx.strokeStyle = "#0284c7";
+      ctx.lineWidth = 0.8;
+      ctx.beginPath();
+      ctx.arc(headPos.x - 2.5, headPos.y, 2, 0, Math.PI * 2);
+      ctx.arc(headPos.x + 2.5, headPos.y, 2, 0, Math.PI * 2);
+      ctx.stroke();
+    } else {
+      // Default
+      ctx.beginPath();
+      ctx.arc(headPos.x, headPos.y - 2, 6.5, Math.PI, Math.PI * 2);
+      ctx.fillStyle = "#1e293b";
+      ctx.fill();
+    }
 
     ctx.restore();
   }
 
-  function drawDeskFurniture(gx, gy, isRunning) {
+  function drawDeskFurniture(agent, gx, gy, isRunning) {
+    const id = (agent && agent.id) || "sandy";
     const dx = 0.52;
     const dy = 0.38;
     const deskZ = 16;
@@ -565,6 +719,69 @@
       // Terminal prompt dot
       ctx.fillStyle = "#10b981";
       ctx.fillRect(sx + 2, sy + 3, 2, 2);
+    }
+
+    // Agent Desk Accessories
+    const acc = isoToScreen(gx + 0.28, gy + 0.12, deskZ);
+    if (id === "chao") {
+      // Steaming coffee mug
+      ctx.fillStyle = "#f8fafc";
+      ctx.fillRect(acc.x - 2, acc.y - 4, 4, 5);
+      ctx.fillRect(acc.x + 2, acc.y - 3, 1.5, 3); // handle
+      // Steam animation
+      const steamY = (animTime * 12) % 6;
+      ctx.fillStyle = "rgba(56, 189, 248, 0.6)";
+      ctx.fillRect(acc.x - 1, acc.y - 6 - steamY, 1.5, 2);
+    } else if (id === "sandy") {
+      // Tech lead tablet / clipboard
+      ctx.fillStyle = "#fbbf24";
+      ctx.fillRect(acc.x - 3, acc.y - 4, 6, 7);
+      ctx.fillStyle = "#f8fafc";
+      ctx.fillRect(acc.x - 2, acc.y - 3, 4, 5);
+    } else if (id === "irene") {
+      // Color swatch palette
+      ctx.fillStyle = "#f43f5e";
+      ctx.fillRect(acc.x - 3, acc.y - 3, 2, 2);
+      ctx.fillStyle = "#06b6d4";
+      ctx.fillRect(acc.x - 1, acc.y - 3, 2, 2);
+      ctx.fillStyle = "#fbbf24";
+      ctx.fillRect(acc.x + 1, acc.y - 3, 2, 2);
+    } else if (id === "probe") {
+      // Magnifying glass
+      ctx.strokeStyle = "#38bdf8";
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.arc(acc.x, acc.y - 2, 3, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.fillStyle = "#64748b";
+      ctx.fillRect(acc.x + 1.5, acc.y, 2, 3);
+    } else if (id === "robert") {
+      // Gold security badge / shield
+      ctx.fillStyle = "#fbbf24";
+      ctx.beginPath();
+      ctx.moveTo(acc.x - 2, acc.y - 4);
+      ctx.lineTo(acc.x + 2, acc.y - 4);
+      ctx.lineTo(acc.x + 2, acc.y - 1);
+      ctx.lineTo(acc.x, acc.y + 1);
+      ctx.lineTo(acc.x - 2, acc.y - 1);
+      ctx.closePath();
+      ctx.fill();
+    } else if (id === "iroi") {
+      // Wrench
+      ctx.fillStyle = "#94a3b8";
+      ctx.fillRect(acc.x - 3, acc.y - 2, 6, 2);
+      ctx.fillRect(acc.x - 3, acc.y - 4, 2, 2);
+      ctx.fillRect(acc.x + 2, acc.y - 4, 2, 2);
+    } else if (id === "quill") {
+      // Feather quill and ink
+      ctx.fillStyle = "#78350f";
+      ctx.fillRect(acc.x - 2, acc.y - 3, 3, 3); // inkpot
+      ctx.strokeStyle = "#fbbf24";
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.moveTo(acc.x - 1, acc.y - 2);
+      ctx.lineTo(acc.x + 3, acc.y - 7);
+      ctx.stroke();
     }
 
     ctx.restore();

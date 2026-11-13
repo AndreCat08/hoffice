@@ -2,6 +2,6 @@ __pycache__/
 *.py[cod]
 *$py.class
 *.sqlite3
-hoffice.db
+hoffice.db*
 .env
 .DS_Store

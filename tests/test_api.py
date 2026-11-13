@@ -155,6 +155,21 @@ def test_all():
     assert res_tasks_intact.status_code == 200
     print("    OK: SQL injection resilient & input boundaries enforced")
 
+    print("[14] Test Agent Avatars & Assets (Irene & Probe check)...")
+    res_avatars_js = client.get("/avatars.js")
+    assert res_avatars_js.status_code == 200
+    js_content = res_avatars_js.text
+    assert "HofficeAvatars" in js_content
+    for agent_id in ["sandy", "chao", "irene", "probe", "robert", "iroi", "quill", "user"]:
+        assert f"{agent_id}:" in js_content
+        assert f"<svg" in js_content
+    print("    OK: All 7 agent pixel avatars and user avatar served via /avatars.js")
+
+    res_index = client.get("/")
+    assert res_index.status_code == 200
+    assert "avatars.js" in res_index.text
+    print("    OK: Index includes /avatars.js")
+
     print("\nALL VERIFICATION CHECKS PASSED.")
 
 if __name__ == "__main__":

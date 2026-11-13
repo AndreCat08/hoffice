@@ -227,9 +227,10 @@ async function loadAgents() {
       // Office Card
       const card = document.createElement("div");
       card.className = "agent-card";
+      const avatarSvg = window.HofficeAvatars ? window.HofficeAvatars.getAgentAvatarSvg(agent.id) : `<div class="avatar-fallback">${agent.name[0]}</div>`;
       card.innerHTML = `
         <div class="agent-top">
-          <div class="agent-avatar">${agent.name[0]}</div>
+          <div class="agent-avatar">${avatarSvg}</div>
           <div class="agent-info">
             <h3>${agent.name}</h3>
             <div class="role">${agent.role}</div>
@@ -248,7 +249,7 @@ async function loadAgents() {
       item.className = `agent-list-item ${agent.id === currentAgent ? 'active' : ''}`;
       item.onclick = () => selectAgent(agent.id);
       item.innerHTML = `
-        <div class="item-avatar">${agent.name[0]}</div>
+        <div class="item-avatar">${avatarSvg}</div>
         <div class="item-text">
           <h4>${agent.name}</h4>
           <p>${agent.role}</p>
@@ -269,6 +270,10 @@ function selectAgent(agentId) {
   if (agent) {
     document.getElementById("chat-target-name").innerText = agent.name;
     document.getElementById("chat-target-role").innerText = `${agent.role} (@${agent.id})`;
+    const avatarContainer = document.getElementById("chat-target-avatar");
+    if (avatarContainer && window.HofficeAvatars) {
+      avatarContainer.innerHTML = window.HofficeAvatars.getAgentAvatarSvg(agent.id);
+    }
   }
   document.querySelectorAll(".agent-list-item").forEach(item => {
     item.classList.remove("active");
@@ -312,10 +317,17 @@ function appendMessage(msg) {
   const stream = document.getElementById("messages-stream");
   const bubble = document.createElement("div");
   const isUser = msg.sender === "user";
+  const senderId = isUser ? "user" : (msg.agent || currentAgent || "sandy");
+  const avatarSvg = window.HofficeAvatars ? window.HofficeAvatars.getAgentAvatarSvg(senderId) : "";
   bubble.className = `message-bubble ${isUser ? 'user' : 'agent'}`;
   bubble.innerHTML = `
-    <div class="message-content">${escapeHtml(msg.content)}</div>
-    <div class="message-meta">${isUser ? 'You' : msg.sender} • ${msg.created_at || ''}</div>
+    <div class="message-row">
+      <div class="message-avatar-thumb">${avatarSvg}</div>
+      <div class="message-body">
+        <div class="message-content">${escapeHtml(msg.content)}</div>
+        <div class="message-meta">${isUser ? 'You' : (msg.sender || msg.agent || currentAgent)} • ${msg.created_at || ''}</div>
+      </div>
+    </div>
   `;
   stream.appendChild(bubble);
   stream.scrollTop = stream.scrollHeight;
@@ -384,11 +396,16 @@ function createTaskElement(task) {
     `;
   }
 
+  const assigneeId = (task.assignee || "").toLowerCase();
+  const assigneeAvatar = (assigneeId && window.HofficeAvatars)
+    ? `<span class="task-assignee-avatar">${window.HofficeAvatars.getAgentAvatarSvg(assigneeId)}</span>`
+    : "";
+
   div.innerHTML = `
     <div class="task-title">${escapeHtml(task.title)}</div>
     ${task.description ? `<div class="task-desc">${escapeHtml(task.description)}</div>` : ''}
     <div class="task-meta">
-      <span class="task-assignee">@${task.assignee || 'unassigned'}</span>
+      <span class="task-assignee">${assigneeAvatar}@${task.assignee || 'unassigned'}</span>
       <span class="task-priority ${priorityClass}">${task.priority || 'medium'}</span>
       ${task.hermes_id ? `<span class="task-priority" style="background:rgba(56,189,248,0.15);color:#38bdf8;border:1px solid rgba(56,189,248,0.4);">Hermes (${escapeHtml(task.hermes_id)})</span>` : ''}
     </div>

@@ -242,6 +242,14 @@ main {
   font-size: 22px;
   font-weight: 700;
   color: var(--accent);
+  overflow: hidden;
+}
+
+.agent-avatar svg,
+.item-avatar svg {
+  width: 100%;
+  height: 100%;
+  display: block;
 }
 
 .agent-info h3 {
@@ -372,6 +380,27 @@ main {
   align-items: center;
 }
 
+.chat-header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.chat-header-avatar {
+  width: 38px;
+  height: 38px;
+  border-radius: 8px;
+  overflow: hidden;
+  background-color: var(--bg-tertiary);
+  flex-shrink: 0;
+}
+
+.chat-header-avatar svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
 .chat-header-info h3 {
   font-size: 16px;
 }
@@ -397,6 +426,31 @@ main {
   font-size: 14px;
   line-height: 1.5;
   word-break: break-word;
+}
+
+.message-row {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.message-avatar-thumb {
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  border-radius: 6px;
+  overflow: hidden;
+  margin-top: 2px;
+}
+
+.message-avatar-thumb svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.message-body {
+  flex: 1;
 }
 
 .message-bubble.user {
@@ -535,6 +589,24 @@ main {
   border-radius: 6px;
   color: var(--accent);
   font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.task-assignee-avatar {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border-radius: 3px;
+  overflow: hidden;
+  vertical-align: middle;
+}
+
+.task-assignee-avatar svg {
+  width: 100%;
+  height: 100%;
+  display: block;
 }
 
 .task-priority {
