@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hoffice — Hermes Virtual Office</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+
+  <header>
+    <div class="brand">
+      <h1>🏢 Hoffice</h1>
+      <span class="tag">Hermes Team Virtual Office</span>
+    </div>
+    <div class="header-meta">
+      <div class="status-badge">
+        <div class="status-dot"></div>
+        <span id="active-status-text">7 agents (0 active)</span>
+      </div>
+      <span style="font-size:12px;color:var(--text-muted);">Host: By X</span>
+    </div>
+  </header>
+
+  <nav class="nav-tabs">
+    <button class="tab-btn active" data-tab="tab-office">🏢 Office Floor</button>
+    <button class="tab-btn" data-tab="tab-chat">💬 Team Chat</button>
+    <button class="tab-btn" data-tab="tab-tasks">📋 Task Board</button>
+    <button class="tab-btn" data-tab="tab-activity">📜 Activity Feed</button>
+  </nav>
+
+  <main>
+    <!-- TAB 1: Office Floor -->
+    <section id="tab-office" class="tab-content active">
+      <div class="section-header">
+        <h2>Team Members</h2>
+        <span style="font-size:13px;color:var(--text-secondary);">Real-time agent roster and current activity</span>
+      </div>
+      <div class="agents-grid" id="agents-grid">
+        <!-- Agent cards dynamically injected -->
+      </div>
+    </section>
+
+    <!-- TAB 2: Team Chat -->
+    <section id="tab-chat" class="tab-content">
+      <div class="chat-container">
+        <aside class="chat-sidebar">
+          <div class="chat-sidebar-header">Select Teammate</div>
+          <div id="chat-agent-list">
+            <!-- Agent items dynamically injected -->
+          </div>
+        </aside>
+        <section class="chat-main">
+          <div class="chat-header">
+            <div class="chat-header-info">
+              <h3 id="chat-target-name">Sandy</h3>
+              <p id="chat-target-role">Tech Lead (@sandy)</p>
+            </div>
+          </div>
+          <div class="messages-stream" id="messages-stream">
+            <!-- Messages stream -->
+          </div>
+          <form class="chat-input-bar" id="chat-form">
+            <textarea id="chat-input" placeholder="Type prompt/instruction to agent (Shift+Enter for newline, Enter to send)..."></textarea>
+            <button type="submit" class="btn" id="chat-send-btn">Send</button>
+          </form>
+        </section>
+      </div>
+    </section>
+
+    <!-- TAB 3: Task Board -->
+    <section id="tab-tasks" class="tab-content">
+      <div class="section-header">
+        <h2>Tasks & Delegation</h2>
+        <button class="btn" id="btn-new-task">➕ Create Task</button>
+      </div>
+      <div class="tasks-columns">
+        <div class="task-col">
+          <div class="task-col-header">
+            <h3>To Do</h3>
+            <span class="count" id="count-todo">0</span>
+          </div>
+          <div class="task-list" id="tasks-todo"></div>
+        </div>
+        <div class="task-col">
+          <div class="task-col-header">
+            <h3>Running</h3>
+            <span class="count" id="count-running">0</span>
+          </div>
+          <div class="task-list" id="tasks-running"></div>
+        </div>
+        <div class="task-col">
+          <div class="task-col-header">
+            <h3>Completed / Log</h3>
+            <span class="count" id="count-done">0</span>
+          </div>
+          <div class="task-list" id="tasks-done"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 4: Activity Feed -->
+    <section id="tab-activity" class="tab-content">
+      <div class="section-header">
+        <h2>Recent Activities</h2>
+        <button class="btn btn-secondary btn-sm" onclick="loadActivities()">🔄 Refresh</button>
+      </div>
+      <div class="activity-feed" id="activities-container">
+        <!-- Activities injected -->
+      </div>
+    </section>
+  </main>
+
+  <!-- Modal Create Task -->
+  <div class="modal-overlay" id="task-modal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>Create New Task</h3>
+      </div>
+      <form id="task-form">
+        <div class="form-group">
+          <label for="task-title-input">Task Title</label>
+          <input type="text" id="task-title-input" placeholder="e.g. Audit API error handling" required>
+        </div>
+        <div class="form-group">
+          <label for="task-desc-input">Task Description / Prompt</label>
+          <textarea id="task-desc-input" rows="4" placeholder="Detailed instruction that the agent will run..."></textarea>
+        </div>
+        <div class="form-group">
+          <label for="task-assignee-select">Assignee</label>
+          <select id="task-assignee-select">
+            <option value="">-- Unassigned --</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="task-priority-select">Priority</label>
+          <select id="task-priority-select">
+            <option value="medium">Medium</option>
+            <option value="high">High</option>
+            <option value="low">Low</option>
+          </select>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-secondary" id="btn-cancel-task">Cancel</button>
+          <button type="submit" class="btn">Create Task</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>
