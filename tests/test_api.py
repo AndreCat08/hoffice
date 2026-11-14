@@ -163,7 +163,10 @@ def test_all():
     for agent_id in ["sandy", "chao", "irene", "probe", "robert", "iroi", "quill", "user"]:
         assert f"{agent_id}:" in js_content
         assert f"<svg" in js_content
-    print("    OK: All 7 agent pixel avatars and user avatar served via /avatars.js")
+        res_char = client.get(f"/characters/{agent_id}.png")
+        assert res_char.status_code == 200
+        assert len(res_char.content) > 1000
+    print("    OK: All 7 agent pixel avatars, user avatar and spritesheets verified")
 
     res_index = client.get("/")
     assert res_index.status_code == 200

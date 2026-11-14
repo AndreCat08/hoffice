@@ -25,6 +25,14 @@
   let animFrameId = null;
   let animTime = 0;
 
+  // Preload human pixel-agent spritesheets (112x96, 16x32 frames)
+  const CHARACTER_SPRITES = {};
+  ["sandy", "chao", "irene", "probe", "robert", "iroi", "quill", "user"].forEach(id => {
+    const img = new Image();
+    img.src = `/characters/${id}.png`;
+    CHARACTER_SPRITES[id] = img;
+  });
+
   // Initialize agent state map
   AGENT_CONFIGS.forEach(a => {
     agentsState[a.id] = { ...a, status: "idle", action: "Idle" };
@@ -400,208 +408,48 @@
 
   function drawAvatar(agent, gx, gy, isRunning) {
     const id = (agent && agent.id) || "sandy";
-    const themeColor = (agent && agent.color) || "#3b82f6";
-    // Slight idle breathing or typing motion when running
-    const wobble = isRunning ? Math.sin(animTime * 10) * 1.5 : Math.sin(animTime * 2) * 0.5;
+    const sprite = CHARACTER_SPRITES[id] || CHARACTER_SPRITES["sandy"];
 
-    const bodyPos = isoToScreen(gx, gy, 14 + wobble);
-    const headPos = isoToScreen(gx, gy, 30 + wobble);
+    // Slight typing shake or idle breathing
+    const wobble = isRunning ? Math.sin(animTime * 12) * 0.8 : Math.sin(animTime * 1.5) * 0.3;
+
+    // Chair seat position is at z=12
+    const seatPos = isoToScreen(gx, gy, 12 + wobble);
+
+    // Frame selection from 112x96 spritesheet (7 cols x 3 rows, 16x32 frame)
+    // Row 0: Facing Front/Down
+    // Col 0: Idle, Col 3-4: Typing at desk, Col 5-6: Reading
+    let col = 0;
+    const row = 0;
+    if (isRunning) {
+      col = Math.floor(animTime * 6) % 2 === 0 ? 3 : 4;
+    } else {
+      const idleCycle = Math.floor(animTime * 0.7) % 6;
+      col = idleCycle === 4 ? 5 : 0;
+    }
+
+    const sx = col * 16;
+    const sy = row * 32;
+    const sw = 16;
+    const sh = 32;
+
+    // 2x pixel-art scaling
+    const dw = 32;
+    const dh = 64;
+    const dx = Math.round(seatPos.x - dw / 2);
+    // Align hips with chair seat
+    const dy = Math.round(seatPos.y - dh + 10);
 
     ctx.save();
+    ctx.imageSmoothingEnabled = false;
 
-    // 1. Torso / Body
-    ctx.beginPath();
-    ctx.ellipse(bodyPos.x, bodyPos.y, 8, 11, 0, 0, Math.PI * 2);
-    ctx.fillStyle = themeColor;
-    ctx.fill();
-    ctx.strokeStyle = "rgba(15, 23, 42, 0.7)";
-    ctx.lineWidth = 1;
-    ctx.stroke();
-
-    // Clothes details per agent
-    if (id === "sandy") {
-      // Tech Lead navy suit with white collar & gold tie
-      ctx.beginPath();
-      ctx.moveTo(bodyPos.x - 3, bodyPos.y - 7);
-      ctx.lineTo(bodyPos.x, bodyPos.y - 2);
-      ctx.lineTo(bodyPos.x + 3, bodyPos.y - 7);
-      ctx.fillStyle = "#f8fafc";
-      ctx.fill();
-      ctx.fillStyle = "#fbbf24";
-      ctx.fillRect(bodyPos.x - 1, bodyPos.y - 2, 2, 6);
-    } else if (id === "chao") {
-      // Charcoal hoodie drawstrings
-      ctx.fillStyle = "#10b981";
-      ctx.fillRect(bodyPos.x - 3, bodyPos.y - 3, 1.2, 6);
-      ctx.fillRect(bodyPos.x + 2, bodyPos.y - 3, 1.2, 6);
-    } else if (id === "irene") {
-      // Cyan stylish collar trim
-      ctx.fillStyle = "#06b6d4";
-      ctx.fillRect(bodyPos.x - 3, bodyPos.y - 6, 6, 2);
-    } else if (id === "probe") {
-      // Safety QA vest stripes
-      ctx.fillStyle = "#e2e8f0";
-      ctx.fillRect(bodyPos.x - 4, bodyPos.y - 5, 2, 10);
-      ctx.fillRect(bodyPos.x + 2, bodyPos.y - 5, 2, 10);
-    } else if (id === "robert") {
-      // Security suit + Red tie
-      ctx.beginPath();
-      ctx.moveTo(bodyPos.x - 3, bodyPos.y - 7);
-      ctx.lineTo(bodyPos.x, bodyPos.y - 3);
-      ctx.lineTo(bodyPos.x + 3, bodyPos.y - 7);
-      ctx.fillStyle = "#f8fafc";
-      ctx.fill();
-      ctx.fillStyle = "#ef4444";
-      ctx.fillRect(bodyPos.x - 1, bodyPos.y - 3, 2, 7);
-    } else if (id === "iroi") {
-      // Utility harness straps
-      ctx.fillStyle = "#1e293b";
-      ctx.fillRect(bodyPos.x - 5, bodyPos.y - 5, 2, 10);
-      ctx.fillRect(bodyPos.x + 3, bodyPos.y - 5, 2, 10);
-    } else if (id === "quill") {
-      // Tweed vest & cream shirt
-      ctx.beginPath();
-      ctx.moveTo(bodyPos.x - 3, bodyPos.y - 7);
-      ctx.lineTo(bodyPos.x, bodyPos.y - 2);
-      ctx.lineTo(bodyPos.x + 3, bodyPos.y - 7);
-      ctx.fillStyle = "#fef3c7";
-      ctx.fill();
-    }
-
-    // 2. Arms extending forward to desk keyboard
-    const armL = isoToScreen(gx + 0.15, gy - 0.1, 16);
-    const armR = isoToScreen(gx - 0.1, gy + 0.15, 16);
-    ctx.beginPath();
-    ctx.moveTo(bodyPos.x - 5, bodyPos.y - 2);
-    ctx.lineTo(armL.x, armL.y);
-    ctx.moveTo(bodyPos.x + 5, bodyPos.y - 2);
-    ctx.lineTo(armR.x, armR.y);
-    ctx.strokeStyle = themeColor;
-    ctx.lineWidth = 2.5;
-    ctx.stroke();
-
-    // Hands
-    ctx.fillStyle = id === "chao" ? "#fde047" : "#fcd34d";
-    ctx.beginPath();
-    ctx.arc(armL.x, armL.y, 2, 0, Math.PI * 2);
-    ctx.arc(armR.x, armR.y, 2, 0, Math.PI * 2);
-    ctx.fill();
-
-    // 3. Head & Skin
-    ctx.beginPath();
-    ctx.arc(headPos.x, headPos.y, 6.5, 0, Math.PI * 2);
-    ctx.fillStyle = id === "chao" ? "#fde047" : "#fcd34d";
-    ctx.fill();
-    ctx.strokeStyle = "rgba(15, 23, 42, 0.4)";
-    ctx.lineWidth = 0.8;
-    ctx.stroke();
-
-    // 4. Distinct Hair / Headgear per agent
-    if (id === "sandy") {
-      // Neat dark hair
-      ctx.beginPath();
-      ctx.arc(headPos.x, headPos.y - 2, 6.5, Math.PI * 0.9, Math.PI * 2.1);
-      ctx.fillStyle = "#0f172a";
-      ctx.fill();
-      // Gold tech lead glasses
-      ctx.strokeStyle = "#fbbf24";
-      ctx.lineWidth = 1;
-      ctx.strokeRect(headPos.x - 4.5, headPos.y - 1.5, 3.5, 2.5);
-      ctx.strokeRect(headPos.x + 1, headPos.y - 1.5, 3.5, 2.5);
-      ctx.beginPath();
-      ctx.moveTo(headPos.x - 1, headPos.y);
-      ctx.lineTo(headPos.x + 1, headPos.y);
-      ctx.stroke();
-    } else if (id === "chao") {
-      // Dark hoodie over head
-      ctx.beginPath();
-      ctx.arc(headPos.x, headPos.y - 1, 7.8, Math.PI * 0.8, Math.PI * 2.2);
-      ctx.fillStyle = "#334155";
-      ctx.fill();
-      // Bangs
-      ctx.fillStyle = "#1e293b";
-      ctx.fillRect(headPos.x - 4, headPos.y - 4, 8, 2.5);
-      // Focused eyes (green terminal reflection)
-      ctx.fillStyle = "#10b981";
-      ctx.fillRect(headPos.x - 3, headPos.y - 1, 2, 1);
-      ctx.fillRect(headPos.x + 1, headPos.y - 1, 2, 1);
-    } else if (id === "irene") {
-      // Vibrant purple bob hair
-      ctx.beginPath();
-      ctx.arc(headPos.x, headPos.y - 2, 7.2, Math.PI * 0.8, Math.PI * 2.2);
-      ctx.fillStyle = "#a855f7";
-      ctx.fill();
-      ctx.fillRect(headPos.x - 6, headPos.y - 2, 2.5, 6);
-      ctx.fillRect(headPos.x + 3.5, headPos.y - 2, 2.5, 6);
-      // Cyan gaming/DJ headset
-      ctx.strokeStyle = "#06b6d4";
-      ctx.lineWidth = 1.8;
-      ctx.beginPath();
-      ctx.arc(headPos.x, headPos.y - 2, 7.8, Math.PI * 1.1, Math.PI * 1.9);
-      ctx.stroke();
-      ctx.fillStyle = "#06b6d4";
-      ctx.fillRect(headPos.x - 7.5, headPos.y - 2, 2.5, 5);
-      ctx.fillRect(headPos.x + 5, headPos.y - 2, 2.5, 5);
-    } else if (id === "probe") {
-      // Safety yellow hardhat
-      ctx.fillStyle = "#eab308";
-      ctx.beginPath();
-      ctx.arc(headPos.x, headPos.y - 2.5, 7.5, Math.PI * 0.9, Math.PI * 2.1);
-      ctx.fill();
-      // Helmet rim
-      ctx.fillStyle = "#ca8a04";
-      ctx.fillRect(headPos.x - 7.5, headPos.y - 2.5, 15, 2.2);
-      // White headlamp
-      ctx.fillStyle = "#fef08a";
-      ctx.fillRect(headPos.x - 1.5, headPos.y - 5.5, 3, 2.5);
-      // Sharp eyes
-      ctx.fillStyle = "#0f172a";
-      ctx.fillRect(headPos.x - 3, headPos.y + 0.5, 1.5, 1.5);
-      ctx.fillRect(headPos.x + 1.5, headPos.y + 0.5, 1.5, 1.5);
-    } else if (id === "robert") {
-      // Slick dark hair
-      ctx.fillStyle = "#020617";
-      ctx.beginPath();
-      ctx.arc(headPos.x, headPos.y - 2, 6.8, Math.PI * 0.85, Math.PI * 2.15);
-      ctx.fill();
-      // Black sunglasses with white glint
-      ctx.fillStyle = "#0f172a";
-      ctx.fillRect(headPos.x - 4.5, headPos.y - 1.5, 9, 2.5);
-      ctx.fillStyle = "#ffffff";
-      ctx.fillRect(headPos.x - 3, headPos.y - 1, 1, 1);
-      ctx.fillRect(headPos.x + 2, headPos.y - 1, 1, 1);
-    } else if (id === "iroi") {
-      // Orange bandana / engineer cap
-      ctx.fillStyle = "#ea580c";
-      ctx.beginPath();
-      ctx.arc(headPos.x, headPos.y - 2.5, 7, Math.PI * 0.85, Math.PI * 2.15);
-      ctx.fill();
-      ctx.fillRect(headPos.x - 6.5, headPos.y - 2, 13, 2.5);
-      // Dark hair peeking
-      ctx.fillStyle = "#451a03";
-      ctx.fillRect(headPos.x - 5.5, headPos.y + 0.5, 2, 2);
-      ctx.fillRect(headPos.x + 3.5, headPos.y + 0.5, 2, 2);
-    } else if (id === "quill") {
-      // Vintage scholar beret / cap
-      ctx.fillStyle = "#78350f";
-      ctx.beginPath();
-      ctx.ellipse(headPos.x, headPos.y - 4, 7, 3, -0.1, 0, Math.PI * 2);
-      ctx.fill();
-      // Round scholar spectacles
-      ctx.strokeStyle = "#0284c7";
-      ctx.lineWidth = 0.8;
-      ctx.beginPath();
-      ctx.arc(headPos.x - 2.5, headPos.y, 2, 0, Math.PI * 2);
-      ctx.arc(headPos.x + 2.5, headPos.y, 2, 0, Math.PI * 2);
-      ctx.stroke();
+    if (sprite && sprite.complete && sprite.naturalWidth > 0) {
+      ctx.drawImage(sprite, sx, sy, sw, sh, dx, dy, dw, dh);
     } else {
-      // Default
-      ctx.beginPath();
-      ctx.arc(headPos.x, headPos.y - 2, 6.5, Math.PI, Math.PI * 2);
-      ctx.fillStyle = "#1e293b";
-      ctx.fill();
+      // Fallback while loading
+      ctx.fillStyle = (agent && agent.color) || "#3b82f6";
+      ctx.fillRect(dx + 8, dy + 16, 16, 24);
     }
-
     ctx.restore();
   }
 

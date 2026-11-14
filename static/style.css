@@ -246,10 +246,16 @@ main {
 }
 
 .agent-avatar svg,
-.item-avatar svg {
+.item-avatar svg,
+.message-avatar-thumb svg,
+.task-assignee-avatar svg,
+#chat-target-avatar svg {
   width: 100%;
   height: 100%;
   display: block;
+  image-rendering: pixelated;
+  image-rendering: -moz-crisp-edges;
+  image-rendering: crisp-edges;
 }
 
 .agent-info h3 {
