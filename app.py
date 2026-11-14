@@ -1,3 +1,4 @@
+import json
 import os
 from pathlib import Path
 import secrets
@@ -6,7 +7,7 @@ import subprocess
 import threading
 import time
 from contextlib import asynccontextmanager, contextmanager
-from typing import Optional
+from typing import Any, Dict, List, Optional
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -32,6 +33,194 @@ AGENTS = {
 running_agents: set[str] = set()
 running_actions: dict[str, Optional[str]] = {}
 running_agents_lock = threading.Lock()
+
+CATEGORIES = [
+    {"id": "desks", "name": "Meja Kerja", "icon": "🪑"},
+    {"id": "chairs", "name": "Kursi", "icon": "💺"},
+    {"id": "pantry", "name": "Pantry & Dapur", "icon": "☕"},
+    {"id": "tech", "name": "Elektronik & Server", "icon": "💻"},
+    {"id": "decor", "name": "Dekorasi & Tanaman", "icon": "🪴"},
+]
+
+ITEM_CATALOG: Dict[str, Dict[str, Any]] = {
+    "desk_standard": {
+        "id": "desk_standard",
+        "name": "Meja Kerja Standar",
+        "category": "desks",
+        "width": 1,
+        "height": 1,
+        "rotations": [0, 90, 180, 270],
+        "canAssignAgent": True,
+        "description": "Meja kerja individual dengan laptop dan keyboard"
+    },
+    "desk_meeting": {
+        "id": "desk_meeting",
+        "name": "Meja Rapat Panjang",
+        "category": "desks",
+        "width": 3,
+        "height": 1,
+        "rotations": [0, 90],
+        "canAssignAgent": False,
+        "description": "Meja rapat kayu panjang untuk diskusi tim"
+    },
+    "coffee_table": {
+        "id": "coffee_table",
+        "name": "Meja Kopi Santai",
+        "category": "desks",
+        "width": 1,
+        "height": 1,
+        "rotations": [0, 90],
+        "canAssignAgent": False,
+        "description": "Meja kopi kaca rendah untuk ruang santai"
+    },
+    "chair_office": {
+        "id": "chair_office",
+        "name": "Kursi Kerja Putar",
+        "category": "chairs",
+        "width": 1,
+        "height": 1,
+        "rotations": [0, 90, 180, 270],
+        "canAssignAgent": True,
+        "description": "Kursi kerja ergonomis beroda dengan bantalan empuk"
+    },
+    "chair_wooden": {
+        "id": "chair_wooden",
+        "name": "Kursi Kayu Minimalis",
+        "category": "chairs",
+        "width": 1,
+        "height": 1,
+        "rotations": [0, 90, 180, 270],
+        "canAssignAgent": False,
+        "description": "Kursi kayu solid tanpa roda"
+    },
+    "sofa_2seat": {
+        "id": "sofa_2seat",
+        "name": "Sofa 2 Dudukan",
+        "category": "chairs",
+        "width": 2,
+        "height": 1,
+        "rotations": [0, 90, 180, 270],
+        "canAssignAgent": False,
+        "description": "Sofa santai berlapis kain nyaman"
+    },
+    "armchair": {
+        "id": "armchair",
+        "name": "Armchair Tunggal",
+        "category": "chairs",
+        "width": 1,
+        "height": 1,
+        "rotations": [0, 90, 180, 270],
+        "canAssignAgent": False,
+        "description": "Kursi sofa santai tunggal dengan sandaran lengan"
+    },
+    "water_dispenser": {
+        "id": "water_dispenser",
+        "name": "Dispenser Air Galon",
+        "category": "pantry",
+        "width": 1,
+        "height": 1,
+        "rotations": [0, 180],
+        "canAssignAgent": False,
+        "description": "Dispenser air minum galon panas dan dingin"
+    },
+    "coffee_machine": {
+        "id": "coffee_machine",
+        "name": "Mesin Kopi Espresso",
+        "category": "pantry",
+        "width": 1,
+        "height": 1,
+        "rotations": [0, 90, 180, 270],
+        "canAssignAgent": False,
+        "description": "Mesin pembuat kopi otomatis dengan grinder"
+    },
+    "refrigerator": {
+        "id": "refrigerator",
+        "name": "Kulkas Kantor",
+        "category": "pantry",
+        "width": 1,
+        "height": 1,
+        "rotations": [0, 180],
+        "canAssignAgent": False,
+        "description": "Lemari pendingin 2 pintu untuk minuman tim"
+    },
+    "server_rack": {
+        "id": "server_rack",
+        "name": "Server Rack Mini",
+        "category": "tech",
+        "width": 1,
+        "height": 1,
+        "rotations": [0, 90],
+        "canAssignAgent": False,
+        "description": "Rak server 42U mini dengan lampu LED berkedip"
+    },
+    "whiteboard": {
+        "id": "whiteboard",
+        "name": "Whiteboard Kanban",
+        "category": "tech",
+        "width": 3,
+        "height": 1,
+        "rotations": [0, 90],
+        "canAssignAgent": False,
+        "description": "Papan tulis putih besar untuk sticky note kanban"
+    },
+    "plant_monstera": {
+        "id": "plant_monstera",
+        "name": "Tanaman Monstera",
+        "category": "decor",
+        "width": 1,
+        "height": 1,
+        "rotations": [0],
+        "canAssignAgent": False,
+        "description": "Tanaman pot daun lebar penyegar ruangan"
+    },
+    "plant_cactus": {
+        "id": "plant_cactus",
+        "name": "Pot Kaktus",
+        "category": "decor",
+        "width": 1,
+        "height": 1,
+        "rotations": [0],
+        "canAssignAgent": False,
+        "description": "Pot kaktus kecil hiasan meja"
+    },
+    "bookshelf": {
+        "id": "bookshelf",
+        "name": "Rak Buku Kayu",
+        "category": "decor",
+        "width": 2,
+        "height": 1,
+        "rotations": [0, 90, 180, 270],
+        "canAssignAgent": False,
+        "description": "Rak buku bertingkat untuk arsip dan dokumen"
+    }
+}
+
+DEFAULT_LAYOUT: Dict[str, Any] = {
+    "version": 1,
+    "cols": 12,
+    "rows": 12,
+    "furniture": [
+        {"uid": "furn_desk_sandy", "itemId": "desk_standard", "category": "desks", "col": 2.5, "row": 2.5, "rotation": 0, "assignedAgent": "sandy"},
+        {"uid": "furn_chair_sandy", "itemId": "chair_office", "category": "chairs", "col": 2.25, "row": 2.25, "rotation": 0, "assignedAgent": "sandy"},
+        {"uid": "furn_desk_chao", "itemId": "desk_standard", "category": "desks", "col": 2.5, "row": 5.5, "rotation": 0, "assignedAgent": "chao"},
+        {"uid": "furn_chair_chao", "itemId": "chair_office", "category": "chairs", "col": 2.25, "row": 5.25, "rotation": 0, "assignedAgent": "chao"},
+        {"uid": "furn_desk_irene", "itemId": "desk_standard", "category": "desks", "col": 5.5, "row": 2.5, "rotation": 0, "assignedAgent": "irene"},
+        {"uid": "furn_chair_irene", "itemId": "chair_office", "category": "chairs", "col": 5.25, "row": 2.25, "rotation": 0, "assignedAgent": "irene"},
+        {"uid": "furn_desk_probe", "itemId": "desk_standard", "category": "desks", "col": 5.5, "row": 5.5, "rotation": 0, "assignedAgent": "probe"},
+        {"uid": "furn_chair_probe", "itemId": "chair_office", "category": "chairs", "col": 5.25, "row": 5.25, "rotation": 0, "assignedAgent": "probe"},
+        {"uid": "furn_desk_robert", "itemId": "desk_standard", "category": "desks", "col": 8.0, "row": 2.5, "rotation": 0, "assignedAgent": "robert"},
+        {"uid": "furn_chair_robert", "itemId": "chair_office", "category": "chairs", "col": 7.75, "row": 2.25, "rotation": 0, "assignedAgent": "robert"},
+        {"uid": "furn_desk_iroi", "itemId": "desk_standard", "category": "desks", "col": 2.5, "row": 8.0, "rotation": 0, "assignedAgent": "iroi"},
+        {"uid": "furn_chair_iroi", "itemId": "chair_office", "category": "chairs", "col": 2.25, "row": 7.75, "rotation": 0, "assignedAgent": "iroi"},
+        {"uid": "furn_desk_quill", "itemId": "desk_standard", "category": "desks", "col": 7.5, "row": 6.5, "rotation": 0, "assignedAgent": "quill"},
+        {"uid": "furn_chair_quill", "itemId": "chair_office", "category": "chairs", "col": 7.25, "row": 6.25, "rotation": 0, "assignedAgent": "quill"},
+        {"uid": "furn_whiteboard", "itemId": "whiteboard", "category": "tech", "col": 5.0, "row": 0.5, "rotation": 0, "assignedAgent": None},
+        {"uid": "furn_water", "itemId": "water_dispenser", "category": "pantry", "col": 9.5, "row": 8.5, "rotation": 0, "assignedAgent": None},
+        {"uid": "furn_coffee", "itemId": "coffee_machine", "category": "pantry", "col": 9.5, "row": 9.5, "rotation": 0, "assignedAgent": None},
+        {"uid": "furn_plant_01", "itemId": "plant_monstera", "category": "decor", "col": 1.0, "row": 1.0, "rotation": 0, "assignedAgent": None},
+        {"uid": "furn_sofa_01", "itemId": "sofa_2seat", "category": "chairs", "col": 9.0, "row": 5.5, "rotation": 90, "assignedAgent": None}
+    ]
+}
 
 
 def set_agent_running(agent_id: str, is_running: bool, action: Optional[str] = None):
@@ -89,11 +278,28 @@ def init_db():
                 message TEXT NOT NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
+
+            CREATE TABLE IF NOT EXISTS office_layout (
+                id INTEGER PRIMARY KEY,
+                version INTEGER NOT NULL DEFAULT 1,
+                cols INTEGER NOT NULL DEFAULT 12,
+                rows INTEGER NOT NULL DEFAULT 12,
+                data TEXT NOT NULL,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
         """)
         try:
             conn.execute("ALTER TABLE tasks ADD COLUMN hermes_id TEXT;")
         except sqlite3.OperationalError:
             pass
+
+        # Seed default layout if not exists
+        row = conn.execute("SELECT id FROM office_layout WHERE id = 1").fetchone()
+        if not row:
+            conn.execute(
+                "INSERT INTO office_layout (id, version, cols, rows, data) VALUES (1, 1, ?, ?, ?)",
+                (DEFAULT_LAYOUT["cols"], DEFAULT_LAYOUT["rows"], json.dumps(DEFAULT_LAYOUT["furniture"]))
+            )
 
 
 def ensure_hermes_table(conn: sqlite3.Connection):
@@ -212,6 +418,22 @@ class TaskUpdate(BaseModel):
 class ChatRequest(BaseModel):
     message: Optional[str] = None
     content: Optional[str] = None
+
+
+class FurnitureItem(BaseModel):
+    uid: str
+    itemId: str
+    col: float
+    row: float
+    rotation: int = 0
+    assignedAgent: Optional[str] = None
+    category: Optional[str] = None
+
+
+class LayoutPayload(BaseModel):
+    cols: Optional[int] = 12
+    rows: Optional[int] = 12
+    furniture: List[FurnitureItem]
 
 
 @asynccontextmanager
@@ -529,6 +751,113 @@ def get_activities():
             "SELECT * FROM activities ORDER BY id DESC LIMIT 50"
         ).fetchall()
         return [dict(r) for r in rows]
+
+
+@app.get("/api/catalog")
+def get_catalog():
+    return {
+        "categories": CATEGORIES,
+        "items": ITEM_CATALOG
+    }
+
+
+@app.get("/api/layout")
+def get_layout():
+    with get_db() as conn:
+        row = conn.execute("SELECT * FROM office_layout WHERE id = 1").fetchone()
+        if not row:
+            return DEFAULT_LAYOUT
+        try:
+            furniture = json.loads(row["data"])
+        except Exception:
+            furniture = DEFAULT_LAYOUT["furniture"]
+        return {
+            "version": row["version"],
+            "cols": row["cols"],
+            "rows": row["rows"],
+            "furniture": furniture,
+            "updated_at": row["updated_at"]
+        }
+
+
+@app.post("/api/layout")
+def update_layout(payload: LayoutPayload):
+    cols = payload.cols if payload.cols is not None else 12
+    rows = payload.rows if payload.rows is not None else 12
+
+    if cols < 4 or cols > 32:
+        raise HTTPException(status_code=422, detail="cols must be between 4 and 32")
+    if rows < 4 or rows > 32:
+        raise HTTPException(status_code=422, detail="rows must be between 4 and 32")
+    if len(payload.furniture) > 150:
+        raise HTTPException(status_code=422, detail="furniture count exceeds limit (max 150)")
+
+    sanitized_items = []
+    for it in payload.furniture:
+        if it.itemId not in ITEM_CATALOG:
+            raise HTTPException(status_code=422, detail=f"unknown itemId '{it.itemId}'")
+        if it.col < 0 or it.col > cols:
+            raise HTTPException(status_code=422, detail=f"item '{it.uid}' col {it.col} out of bounds")
+        if it.row < 0 or it.row > rows:
+            raise HTTPException(status_code=422, detail=f"item '{it.uid}' row {it.row} out of bounds")
+        if it.rotation not in (0, 90, 180, 270):
+            raise HTTPException(status_code=422, detail=f"invalid rotation {it.rotation}")
+        if it.assignedAgent and it.assignedAgent not in AGENTS and it.assignedAgent != "user":
+            raise HTTPException(status_code=422, detail=f"unknown assignedAgent '{it.assignedAgent}'")
+
+        item_data = it.model_dump()
+        item_data["category"] = ITEM_CATALOG[it.itemId]["category"]
+        sanitized_items.append(item_data)
+
+    with get_db() as conn:
+        conn.execute(
+            """
+            INSERT INTO office_layout (id, version, cols, rows, data, updated_at)
+            VALUES (1, 1, ?, ?, ?, CURRENT_TIMESTAMP)
+            ON CONFLICT(id) DO UPDATE SET
+                cols = excluded.cols,
+                rows = excluded.rows,
+                data = excluded.data,
+                updated_at = CURRENT_TIMESTAMP
+            """,
+            (cols, rows, json.dumps(sanitized_items))
+        )
+        log_activity(conn, "layout_update", f"Office layout updated ({len(sanitized_items)} items)")
+
+        row = conn.execute("SELECT * FROM office_layout WHERE id = 1").fetchone()
+        return {
+            "version": row["version"],
+            "cols": row["cols"],
+            "rows": row["rows"],
+            "furniture": sanitized_items,
+            "updated_at": row["updated_at"]
+        }
+
+
+@app.post("/api/layout/reset")
+def reset_layout():
+    with get_db() as conn:
+        conn.execute(
+            """
+            INSERT INTO office_layout (id, version, cols, rows, data, updated_at)
+            VALUES (1, 1, ?, ?, ?, CURRENT_TIMESTAMP)
+            ON CONFLICT(id) DO UPDATE SET
+                cols = excluded.cols,
+                rows = excluded.rows,
+                data = excluded.data,
+                updated_at = CURRENT_TIMESTAMP
+            """,
+            (DEFAULT_LAYOUT["cols"], DEFAULT_LAYOUT["rows"], json.dumps(DEFAULT_LAYOUT["furniture"]))
+        )
+        log_activity(conn, "layout_reset", "Office layout reset to default")
+        row = conn.execute("SELECT * FROM office_layout WHERE id = 1").fetchone()
+        return {
+            "version": row["version"],
+            "cols": row["cols"],
+            "rows": row["rows"],
+            "furniture": DEFAULT_LAYOUT["furniture"],
+            "updated_at": row["updated_at"]
+        }
 
 
 init_db()

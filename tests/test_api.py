@@ -173,6 +173,106 @@ def test_all():
     assert "avatars.js" in res_index.text
     print("    OK: Index includes /avatars.js")
 
+    print("[15] Test Catalog, Layout & Rotation API (Chao, Probe & Robert check)...")
+    # 1. Catalog
+    res_cat = client.get("/api/catalog")
+    assert res_cat.status_code == 200
+    cat_data = res_cat.json()
+    assert "categories" in cat_data
+    assert "items" in cat_data
+    cat_ids = [c["id"] for c in cat_data["categories"]]
+    for expected_cat in ["desks", "chairs", "pantry", "tech", "decor"]:
+        assert expected_cat in cat_ids
+    
+    items = cat_data["items"]
+    assert "desk_standard" in items
+    assert "chair_office" in items
+    assert "sofa_2seat" in items
+    assert "coffee_machine" in items
+    assert "server_rack" in items
+    assert "plant_monstera" in items
+    assert items["chair_office"]["rotations"] == [0, 90, 180, 270]
+    print("    OK: Catalog returns categorized rotatable items")
+
+    # 2. Get Layout
+    res_layout = client.get("/api/layout")
+    assert res_layout.status_code == 200
+    layout = res_layout.json()
+    assert layout["cols"] == 12
+    assert layout["rows"] == 12
+    assert len(layout["furniture"]) >= 14
+    print("    OK: Initial office layout retrieved from SQLite")
+
+    # 3. Update Layout
+    sample_layout = {
+        "cols": 14,
+        "rows": 14,
+        "furniture": [
+            {
+                "uid": "test_desk_1",
+                "itemId": "desk_standard",
+                "col": 4.0,
+                "row": 4.0,
+                "rotation": 90,
+                "assignedAgent": "sandy"
+            },
+            {
+                "uid": "test_sofa_1",
+                "itemId": "sofa_2seat",
+                "col": 8.0,
+                "row": 8.0,
+                "rotation": 180,
+                "assignedAgent": None
+            }
+        ]
+    }
+    res_post = client.post("/api/layout", json=sample_layout)
+    assert res_post.status_code == 200
+    saved = res_post.json()
+    assert saved["cols"] == 14
+    assert len(saved["furniture"]) == 2
+    assert saved["furniture"][0]["rotation"] == 90
+    assert saved["furniture"][0]["category"] == "desks"
+    assert saved["furniture"][1]["category"] == "chairs"
+
+    # Verify persistence
+    res_verify = client.get("/api/layout")
+    assert res_verify.status_code == 200
+    assert res_verify.json()["cols"] == 14
+
+    # 4. Security & Validation boundaries (Robert & Probe)
+    # Out of bounds col
+    bad_col = {
+        "cols": 10,
+        "rows": 10,
+        "furniture": [{"uid": "b1", "itemId": "desk_standard", "col": 25.0, "row": 5.0, "rotation": 0}]
+    }
+    assert client.post("/api/layout", json=bad_col).status_code == 422
+
+    # Unknown item
+    bad_item = {
+        "cols": 10,
+        "rows": 10,
+        "furniture": [{"uid": "b2", "itemId": "nonexistent_rocket", "col": 2.0, "row": 2.0, "rotation": 0}]
+    }
+    assert client.post("/api/layout", json=bad_item).status_code == 422
+
+    # Invalid rotation
+    bad_rot = {
+        "cols": 10,
+        "rows": 10,
+        "furniture": [{"uid": "b3", "itemId": "desk_standard", "col": 2.0, "row": 2.0, "rotation": 45}]
+    }
+    assert client.post("/api/layout", json=bad_rot).status_code == 422
+
+    # 5. Reset Layout
+    res_reset = client.post("/api/layout/reset")
+    assert res_reset.status_code == 200
+    reset_data = res_reset.json()
+    assert reset_data["cols"] == 12
+    assert len(reset_data["furniture"]) >= 14
+    print("    OK: Layout update, boundary validations, and reset verified")
+
     print("\nALL VERIFICATION CHECKS PASSED.")
 
 if __name__ == "__main__":
